@@ -11,7 +11,11 @@ enum scene_mode_t {
     mode_sender,
 };
 
+#if defined(START_IN_SENDER_MODE)
+static scene_mode_t scene_mode = mode_sender;
+#else
 static scene_mode_t scene_mode = mode_select;
+#endif
 static ui_button_t btns[2]     = {{0, 200, 120, 40, "Receiver"},
                                   {200, 200, 120, 40, "Sender"}};
 static view_receiver_t view_receiver;
@@ -66,7 +70,12 @@ void setup(void) {
     dmx_driver_install(dmxPort, DMX_MAX_PACKET_SIZE, dmxQueueSize, &queue,
                        dmxInterruptPriority);
 
+#if defined(START_IN_SENDER_MODE)
+    scene_mode = mode_sender;
+    view_sender.setup();
+#else
     drawSelectSetup();
+#endif
 }
 
 int getBtnIndex(int x, int y) {
