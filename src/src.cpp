@@ -35,6 +35,7 @@ void drawSelectSetup(void) {
 
 void setup(void) {
     M5.begin();
+    Serial.begin(115200);
 
     /* Configure the DMX hardware to the default DMX settings and tell the DMX
       driver which hardware pins we are using. */

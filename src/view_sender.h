@@ -3,6 +3,8 @@
 #include "common.h"
 #include "logo_sender.h"
 
+#include <string>
+
 class view_sender_t : public view_t {
    public:
     void setup(void) override;
@@ -60,4 +62,9 @@ class view_sender_t : public view_t {
     void fillBar(LovyanGFX* gfx, int32_t x, int32_t y, int32_t w, int32_t h,
                  size_t ch = 0);
     void updateDisplay(bool full_redraw = false);
+    bool processSerialInput(void);
+    bool applySerialLine(const std::string& line);
+
+    std::string serial_buffer;
+    bool serial_overflow = false;
 };
