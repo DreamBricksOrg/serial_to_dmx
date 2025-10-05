@@ -1,8 +1,10 @@
 #include "view_sender.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 
 void view_sender_t::setup(void) {
 #if ESP_DMX_VERSION == 1
@@ -12,6 +14,9 @@ void view_sender_t::setup(void) {
 #endif
     std::memset(data, 0, sizeof(data));
     dmx_write_packet(dmxPort, data[0], DMX_MAX_PACKET_SIZE);
+    serial_buffer.clear();
+    serial_buffer.reserve(DMX_MAX_PACKET_SIZE * 4);
+    serial_overflow = false;
 
     M5.Display.setFont(&fonts::Font0);
     M5.Display.setTextDatum(textdatum_t::top_left);
@@ -41,7 +46,7 @@ bool view_sender_t::loop(void) {
     }
 #endif
 
-    bool modified     = false;
+    bool modified     = processSerialInput();
     bool btnB_Clicked = M5.BtnB.wasClicked();
 
     auto tp = M5.Touch.getDetail();
@@ -186,6 +191,102 @@ bool view_sender_t::loop(void) {
     }
 
     return true;
+}
+
+bool view_sender_t::processSerialInput(void) {
+    bool updated = false;
+    constexpr size_t max_buffer = DMX_MAX_PACKET_SIZE * 4;
+
+    while (Serial.available() > 0) {
+        char c = static_cast<char>(Serial.read());
+        if (c == '\r') {
+            continue;
+        }
+        if (c == '\n') {
+            if (!serial_overflow && !serial_buffer.empty()) {
+                if (applySerialLine(serial_buffer)) {
+                    updated = true;
+                }
+            }
+            serial_buffer.clear();
+            serial_overflow = false;
+        } else if (!serial_overflow) {
+            if (serial_buffer.size() < max_buffer) {
+                serial_buffer.push_back(c);
+            } else {
+                serial_overflow = true;
+            }
+        }
+    }
+
+    return updated;
+}
+
+bool view_sender_t::applySerialLine(const std::string& line) {
+    if (line.empty()) {
+        return false;
+    }
+
+    size_t old_idx = data_idx;
+    size_t new_idx = 1 - data_idx;
+    std::memcpy(data[new_idx], data[old_idx], DMX_MAX_PACKET_SIZE);
+
+    const char* ptr = line.c_str();
+    size_t channel  = 1;
+    bool changed    = false;
+
+    while (*ptr != '\0' && channel < DMX_MAX_PACKET_SIZE) {
+        while (std::isspace(static_cast<unsigned char>(*ptr))) {
+            ++ptr;
+        }
+        if (*ptr == '\0') {
+            break;
+        }
+
+        char* endptr;
+        long value = std::strtol(ptr, &endptr, 10);
+        if (ptr == endptr) {
+            break;
+        }
+        if (value < 0) {
+            value = 0;
+        } else if (value > 255) {
+            value = 255;
+        }
+
+        uint8_t new_value = static_cast<uint8_t>(value);
+        if (data[new_idx][channel] != new_value) {
+            data[new_idx][channel] = new_value;
+            changed                = true;
+        }
+
+        ++channel;
+        ptr = endptr;
+
+        while (std::isspace(static_cast<unsigned char>(*ptr))) {
+            ++ptr;
+        }
+        if (*ptr == ',') {
+            ++ptr;
+        }
+    }
+
+    if (changed) {
+        data_idx = new_idx;
+        dmx_write_packet(dmxPort, data[data_idx], DMX_MAX_PACKET_SIZE);
+        updateDisplay();
+
+        uint16_t current_target = data[data_idx][target_channel];
+        if (ui_mode == ui_mode_t::mode_value_setting) {
+            drawUIValueSet(current_target, true);
+        } else {
+            target_value = static_cast<int16_t>(current_target);
+        }
+
+        std::memcpy(data[1 - data_idx], data[data_idx], DMX_MAX_PACKET_SIZE);
+    }
+
+    return changed;
 }
 
 void view_sender_t::close(void) {
