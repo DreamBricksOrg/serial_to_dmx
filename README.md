@@ -1,4 +1,4 @@
-# DMX512Tools
+# Serial to DMX (forked from DMX512Tools)
 
 ### target devices
  - M5Stack BASIC / GRAY / GO / FIRE
