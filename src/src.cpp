@@ -3,6 +3,8 @@
 #include "view_receiver.h"
 #include "view_sender.h"
 
+#define START_IN_SENDER_MODE
+
 QueueHandle_t queue;
 
 enum scene_mode_t {
